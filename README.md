@@ -1,6 +1,12 @@
 # ERP Alerts
 
-App to get internship and placement push notifications from IIT KGP ERP
+App to get internship and placement push notifications from IIT KGP ERP  
+
+[Website](https://erpalerts.kgplife.com)  
+[Chrome Extension](https://chromewebstore.google.com/detail/erp-alerts/hnnjfmjhhdmajofafjndhpmohfodakco)
+
+
+
 
 > [!Warning]
 > This tool is open source, but the way you use it can get you into trouble. Some things you **cannot** do are:
