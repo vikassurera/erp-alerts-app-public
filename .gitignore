@@ -50,4 +50,3 @@ app.*.map.json
 lib/data
 
 keys
-lib/config/prod.config.dart
