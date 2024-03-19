@@ -1,0 +1,194 @@
+name: Pushlish PlayStore
+on: 
+  push:
+    branches:
+      - master
+
+env: 
+  KEYSTORE_PROPERTIES_PATH: "${{ github.workspace }}/android/keystore.properties"
+  KEYSTORE_FILE_PATH: "${{ github.workspace }}/upload-keystore.jks"
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      # checkout repo
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      # List the files
+      - name: List the files in root
+        run: ls ${{ github.workspace }}
+
+      # Download the keystore file
+      - name: Download Android keystore
+        id: android_keystore
+        uses: timheuer/base64-to-file@v1.0.3
+        with:
+          fileName: upload-keystore.jks
+          encodedString: ${{ secrets.KEYSTORE_BASE64 }}
+      
+      # Copy the keystore file to the root
+      - name: Copy file
+        run: cp ${{steps.android_keystore.outputs.filePath}} ${{env.KEYSTORE_FILE_PATH}}
+
+      - name: 📝🔐 Create keystore.properties file
+        env:
+          KEYSTORE_PROPERTIES_PATH: ${{env.KEYSTORE_PROPERTIES_PATH}}
+          KEYSTORE_FILE_PATH: ${{env.KEYSTORE_FILE_PATH}}
+        run: |
+          echo "prodStoreFile=$KEYSTORE_FILE_PATH" > $KEYSTORE_PROPERTIES_PATH
+          echo "prodKeyAlias=${{ secrets.KEYSTORE_ALIAS }}" >> $KEYSTORE_PROPERTIES_PATH
+          echo "prodStorePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> $KEYSTORE_PROPERTIES_PATH
+          echo "prodKeyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}" >> $KEYSTORE_PROPERTIES_PATH
+
+      - name: List the files in android/app
+        run: ls ${{ github.workspace }}/android/app
+      
+        # List the files
+      - name: List the files in root
+        run: ls ${{ github.workspace }}
+
+      # setup flutter
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.13.0'
+          channel: 'stable'
+          cache: true
+        id: flutter
+
+      # Get dependencies
+      - name: Get Dependencies
+        run: flutter pub get
+
+      - name: Create config.dart file
+        run: bash ./scripts/setup_config.sh ${{secrets.RAZORPAY_API_KEY}} ${{secrets.MIXPANEL_KEY}} ${{secrets.GOOGLE_CLIENT_ID}}
+
+      - name: List the files
+        run: ls ${{ github.workspace }}/lib/data
+
+      # Build app bundle
+      - name: Build App Bundle
+        run: flutter build appbundle --release
+
+      - name: List the files
+        run: ls ${{ github.workspace }}/build/app/outputs/bundle/release
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: "erpalerts"
+          path: ${{github.workspace}}/build/app/outputs/bundle/release/app-release.aab
+
+      - name: Slack notification (fail)
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: 'deploy'
+          payload: |
+            {
+                "username": "CI/CD",
+                "attachments": [
+                    {
+                        "color": "#FF0000",
+                        "blocks": [
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": "*App build failed*"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_NOTIFICATIONS_BOT_TOKEN }}
+
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      # Setup service_account.json
+      - name: 🔐 Retrieve base64 json and decode it to a file
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+        run: echo -n "$SERVICE_ACCOUNT_JSON" | base64 -d > "${{ github.workspace }}/service_account.json"
+
+      - name: Download Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: "erpalerts"
+          path: "android/"
+
+      - name: List the files
+        run: ls ${{ github.workspace }}/android
+
+      - name: Deploy to Play Store Internal Track
+        id: deploy
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: service_account.json
+          packageName: com.kgplife.erpalerts
+          releaseFiles: ${{github.workspace}}/android/app-release.aab
+          track: internal
+
+      - name: Slack notification (fail)
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: 'deploy'
+          payload: |
+            {
+                "username": "CI/CD",
+                "attachments": [
+                    {
+                        "color": "#FF0000",
+                        "blocks": [
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": "*App deployment to Play Store Internal Track failed*"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_NOTIFICATIONS_BOT_TOKEN }}
+      
+      - name: Slack notification (success)
+        if: success()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: 'deploy'
+          payload: |
+            {
+                "username": "CI/CD",
+                "attachments": [
+                    {
+                        "color": "#28a14e",
+                        "blocks": [
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": "*App deployed to Play Store Internal Track*"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_NOTIFICATIONS_BOT_TOKEN }}
+      
+
