@@ -2,6 +2,13 @@
 
 App to get internship and placement push notifications from IIT KGP ERP
 
+> [!Warning]
+> This tool is open source, but the way you use it can get you into trouble. Some things you **cannot** do are:
+> - Use this tool to send CDC notifications to **any non-KGPian**.
+> - Use this tool on a wide scale or publicise its running instance without consent from the author
+>
+> Please use this tool responsibly and within ethical and legal bounds. We do not promote violating company policies or laws. The extent of the punishment may very **from disciplinary action by the institute to blacklisting from CDC process**.
+
 ## Setup
 1. Connect to firebase - make sure you download the `google-services.json` file in proper location.
 
